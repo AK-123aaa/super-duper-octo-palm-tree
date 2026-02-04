@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>The Hollow Sanctum</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Crimson Text',serif;color:#c4a96b;cursor:none}
+#gameCanvas{display:block;width:100vw;height:100vh}
+ 
+#cursor{position:fixed;width:18px;height:18px;border:2px solid rgba(196,169,107,.7);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);transition:width .15s,height .15s,border-color .15s;mix-blend-mode:difference}
+#cursor.pulse{width:30px;height:30px;border-color:rgba(196,169,107,1)}
+ 
+#hud{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:100}
+#crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:rgba(196,169,107,.5)}
+#crosshair::before{width:2px;height:100%;left:50%;transform:translateX(-50%)}
+#crosshair::after{height:2px;width:100%;top:50%;transform:translateY(-50%)}
+#compass{position:absolute;top:20px;left:50%;transform:translateX(-50%);font-family:'Cinzel',serif;font-size:11px;letter-spacing:4px;color:rgba(196,169,107,.4);text-shadow:0 0 10px rgba(196,169,107,.18)}
+#heartContainer{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);display:flex;gap:10px}
+.heart{width:22px;height:22px;opacity:.8;transition:opacity .3s}
+.heart.lost{opacity:.13;filter:grayscale(1)}
+#interactPrompt{position:absolute;bottom:86px;left:50%;transform:translateX(-50%);font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:rgba(196,169,107,.85);text-shadow:0 0 16px rgba(196,169,107,.3);opacity:0;transition:opacity .4s;text-align:center;white-space:nowrap}
+#interactPrompt .key{display:inline-block;border:1px solid rgba(196,169,107,.4);padding:2px 8px;border-radius:4px;margin:0 3px;font-size:11px;background:rgba(196,169,107,.06)}
+ 
+#progressBar{position:absolute;top:16px;left:22px;width:110px}
+#progressLabel{font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;color:rgba(196,169,107,.3);margin-bottom:4px;text-transform:uppercase}
+#progressTrack{width:100%;height:2px;background:rgba(196,169,107,.1);border-radius:2px;overflow:hidden}
+#progressFill{width:0%;height:100%;background:linear-gradient(90deg,rgba(196,169,107,.45),rgba(196,169,107,.8));border-radius:2px;transition:width .6s}
+ 
+/* journal */
+#journalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.87);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .5s}
+#journalOverlay.visible{opacity:1;pointer-events:all}
+#journalBox{width:510px;max-width:90vw;background:linear-gradient(145deg,#1a1610,#0f0d0a);border:1px solid rgba(196,169,107,.2);border-radius:6px;padding:40px 38px;box-shadow:0 0 60px rgba(0,0,0,.8),inset 0 0 40px rgba(196,169,107,.025);position:relative}
+#journalBox::before{content:'';position:absolute;inset:6px;border:1px solid rgba(196,169,107,.07);border-radius:4px;pointer-events:none}
+#journalTitle{font-family:'Cinzel',serif;font-size:17px;font-weight:700;color:#c4a96b;text-align:center;letter-spacing:3px;margin-bottom:5px;text-transform:uppercase}
+#journalDivider{width:46px;height:1px;background:rgba(196,169,107,.28);margin:9px auto 18px}
+#journalText{font-size:15px;line-height:1.9;color:rgba(196,169,107,.72);font-style:italic;text-align:center}
+#journalClose{position:absolute;bottom:15px;left:50%;transform:translateX(-50%);font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;color:rgba(196,169,107,.32);text-transform:uppercase}
+ 
+/* puzzle */
+#puzzleOverlay{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .5s}
+#puzzleOverlay.visible{opacity:1;pointer-events:all}
+#puzzleBox{width:450px;max-width:92vw;background:linear-gradient(150deg,#1c1714,#100e0c);border:1px solid rgba(196,169,107,.17);border-radius:8px;padding:36px 32px;box-shadow:0 0 70px rgba(0,0,0,.9)}
+#puzzleTitle{font-family:'Cinzel',serif;font-size:16px;font-weight:700;color:#c4a96b;text-align:center;letter-spacing:3px;text-transform:uppercase;margin-bottom:5px}
+#puzzleDesc{font-size:13px;color:rgba(196,169,107,.52);text-align:center;line-height:1.75;margin-bottom:18px;font-style:italic}
+#seqIndicator{display:flex;justify-content:center;gap:7px;margin-bottom:16px}
+.seqDot{width:9px;height:9px;border-radius:50%;border:1px solid rgba(196,169,107,.28);background:rgba(196,169,107,.05);transition:background .3s,border-color .3s}
+.seqDot.filled{background:rgba(196,169,107,.55);border-color:rgba(196,169,107,.7)}
+#runeGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:280px;margin:0 auto 16px}
+.runeBtn{width:100%;aspect-ratio:1;background:rgba(196,169,107,.05);border:1px solid rgba(196,169,107,.16);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:28px;color:rgba(196,169,107,.62);transition:background .3s,border-color .3s,box-shadow .3s,transform .1s;pointer-events:all;user-select:none}
+.runeBtn:hover{background:rgba(196,169,107,.1);border-color:rgba(196,169,107,.38)}
+.runeBtn:active{transform:scale(.93)}
+.runeBtn.selected{background:rgba(196,169,107,.15);border-color:rgba(196,169,107,.6);box-shadow:0 0 12px rgba(196,169,107,.2)}
+.runeBtn.wrong{border-color:rgba(175,55,55,.7);background:rgba(175,55,55,.1);animation:shake .3s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+#puzzleFeedback{text-align:center;font-family:'Cinzel',serif;font-size:11px;letter-spacing:2px;color:rgba(196,169,107,.4);min-height:18px;margin-bottom:3px}
+#puzzleCloseBtn{display:block;margin:12px auto 0;background:none;border:1px solid rgba(196,169,107,.25);color:rgba(196,169,107,.5);font-family:'Cinzel',serif;font-size:10px;letter-spacing:2px;padding:5px 18px;border-radius:3px;cursor:pointer;text-transform:uppercase;pointer-events:all;transition:all .2s}
+#puzzleCloseBtn:hover{border-color:rgba(196,169,107,.5);color:rgba(196,169,107,.8)}
+ 
+/* ending */
+#endingOverlay{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:600;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 1.4s}
+#endingOverlay.visible{opacity:1;pointer-events:all}
+#endingTitle{font-family:'Cinzel',serif;font-size:42px;font-weight:900;color:#c4a96b;letter-spacing:8px;text-transform:uppercase;text-shadow:0 0 48px rgba(196,169,107,.28);margin-bottom:22px;text-align:center}
+#endingText{font-size:15px;color:rgba(196,169,107,.58);max-width:510px;text-align:center;line-height:2.1;margin-bottom:38px}
+#endingRestart{font-family:'Cinzel',serif;font-size:12px;letter-spacing:3px;color:#c4a96b;border:1px solid rgba(196,169,107,.38);background:none;padding:10px 34px;border-radius:3px;cursor:pointer;text-transform:uppercase;transition:all .3s;pointer-events:all}
+#endingRestart:hover{background:rgba(196,169,107,.1);border-color:rgba(196,169,107,.6)}
+ 
+/* start */
+#startScreen{position:fixed;inset:0;background:#000;z-index:700;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 1.5s}
+#startScreen.fade{opacity:0;pointer-events:none}
+#startTitle{font-family:'Cinzel',serif;font-size:52px;font-weight:900;color:#c4a96b;letter-spacing:10px;text-transform:uppercase;text-shadow:0 0 55px rgba(196,169,107,.22),0 0 110px rgba(196,169,107,.07);margin-bottom:8px;text-align:center;line-height:1.15}
+#startSubtitle{font-family:'Crimson Text',serif;font-size:15px;font-style:italic;color:rgba(196,169,107,.38);letter-spacing:5px;margin-bottom:46px}
+.orn{color:rgba(196,169,107,.25);font-size:18px;margin-bottom:36px;letter-spacing:7px}
+#startDesc{font-size:14px;color:rgba(196,169,107,.42);max-width:410px;text-align:center;line-height:2.1;margin-bottom:40px}
+#startBtn{font-family:'Cinzel',serif;font-size:13px;letter-spacing:4px;color:#c4a96b;border:1px solid rgba(196,169,107,.42);background:rgba(196,169,107,.04);padding:13px 48px;border-radius:3px;cursor:pointer;text-transform:uppercase;transition:all .4s;pointer-events:all}
+#startBtn:hover{background:rgba(196,169,107,.13);box-shadow:0 0 26px rgba(196,169,107,.16)}
+#startControls{margin-top:32px;font-size:11px;color:rgba(196,169,107,.26);text-align:center;line-height:2.4;letter-spacing:1px}
+.ctrlKey{border:1px solid rgba(196,169,107,.2);padding:1px 7px;border-radius:3px;background:rgba(196,169,107,.04)}
+ 
+/* effects */
+#flash{position:fixed;inset:0;background:rgba(196,169,107,.03);pointer-events:none;z-index:50;opacity:0;transition:opacity .1s}
+#noise{position:fixed;inset:0;pointer-events:none;z-index:40;opacity:.03;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:180px}
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:35;background:radial-gradient(ellipse at center,transparent 46%,rgba(0,0,0,.62) 100%)}
+#sanityFlicker{position:fixed;inset:0;pointer-events:none;z-index:45;opacity:0;background:radial-gradient(ellipse at center,transparent 28%,rgba(8,4,4,.55) 100%);transition:opacity .08s}
+</style>
+</head>
+<body>
+<div id="cursor"></div>
+<div id="noise"></div>
+<div id="vignette"></div>
+<div id="sanityFlicker"></div>
+<div id="flash"></div>
+<canvas id="gameCanvas"></canvas>
+ 
+<div id="hud">
+  <div id="progressBar"><div id="progressLabel">Seals Broken</div><div id="progressTrack"><div id="progressFill"></div></div></div>
+  <div id="compass">◆ North ◆</div>
+  <div id="crosshair"></div>
+  <div id="interactPrompt"></div>
+  <div id="heartContainer"></div>
+</div>
+ 
+<div id="journalOverlay"><div id="journalBox">
+  <div id="journalTitle">Inscription</div>
+  <div id="journalDivider"></div>
+  <div id="journalText"></div>
+  <div id="journalClose">[ Press E to dismiss ]</div>
+</div></div>
+ 
+<div id="puzzleOverlay"><div id="puzzleBox">
+  <div id="puzzleTitle">The Rune Lock</div>
+  <div id="puzzleDesc">…</div>
+  <div id="seqIndicator"></div>
+  <div id="runeGrid"></div>
+  <div id="puzzleFeedback"></div>
+  <button id="puzzleCloseBtn">Close</button>
+</div></div>
+ 
+<div id="endingOverlay">
+  <div id="endingTitle">Title</div>
+  <div id="endingText"></div>
+  <button id="endingRestart">Play Again</button>
+</div>
+ 
+<div id="startScreen">
+  <div id="startTitle">The Hollow<br>Sanctum</div>
+  <div id="startSubtitle">— a tale of ancient dread —</div>
+  <div class="orn">✦ ─── ✦</div>
+  <div id="startDesc">Beneath the forgotten hills lies a sanctum sealed for a thousand years.<br>Something within has begun to breathe again.<br>You are the only one who heard the call.</div>
+  <button id="startBtn">Enter the Darkness</button>
+  <div id="startControls">
+    <span class="ctrlKey">Mouse</span> Look &nbsp;
+    <span class="ctrlKey">W A S D</span> Move &nbsp;
+    <span class="ctrlKey">E</span> Interact &nbsp;
+    <span class="ctrlKey">Shift</span> Sprint
+  </div>
+</div>
+ 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+ 
+/* ═══ CONFIG ═══ */
+const MOVE_SPD=4.2, SPRINT_SPD=7.5, TOTAL_SEALS=3;
+const RUNES=['ᚠ','ᚢ','ᚦ','ᚨ','ᚲ','ᛋ','ᚱ','ᛃ','ᛁ'];
+const SEQUENCES=[[0,2,5,1,4,7],[3,1,6,0,5,2],[5,4,8,2,0,3]];
+const LORE=[
+  {title:'The First Inscription',text:'"Those who descend do so not by choice, but by summoning. The sanctum selects. It waits. It remembers every soul that has walked its halls — and it keeps them."'},
+  {title:'The Keeper\'s Warning',text:'"I have served the sanctum for forty winters. I have watched it feed. Do not trust the lights. Do not trust the silence. The darkness here is not empty — it is full."'},
+  {title:'The Cartographer\'s Note',text:'"The halls shift. I mapped them six times; six times the map was wrong. The sanctum does not want you to find the exit. It wants you to forget there was one."'},
+  {title:'The Final Prayer',text:'"To whoever reads this: the seal at the sanctum\'s heart is both a lock and a door. The runes will open it. Whether what lies beyond is salvation or damnation — I could not tell."'},
+  {title:'The Altar\'s Whisper',text:'"Feed the sanctum or be consumed by it. That is the ancient bargain. The ones who came before chose to feed it. I choose to run."'},
+  {title:'Etched in Blood',text:'"It followed me through three corridors. It wore a shape I almost recognised. Almost."'}
+];
+const SEAL_INFO=[
+  {title:'The First Seal',desc:'The stone door trembles. A faint pattern of runes glows — select them in the order they first appeared.'},
+  {title:'The Second Seal',desc:'Shadows dance across the runes. Read their sequence from oldest to newest and the seal shall yield.'},
+  {title:'The Final Seal',desc:'The sanctum\'s heart pulses beneath your feet. Complete the sequence to shatter its hold forever.'}
+];
+ 
+/* ═══ STATE ═══ */
+let gameActive=false, journalOpen=false, puzzleOpen=false, endingShown=false;
+let yaw=0, pitch=0, playerPos=new THREE.Vector3(0,1.6,18);
+let hearts=3, sealsSolved=0;
+let currentInteractable=null, currentSealData=null, currentSeqIdx=0;
+let selectedRunes=[];
+let clock, time=0;
+let torches=[], particleSystems=[], sealDoors=[], interactables=[];
+let shadowCreature=null, shadowTimer=3, shadowPhase=0, shadowDur=1.8, shadowTarget=new THREE.Vector3();
+ 
+/* ═══ THREE.JS ═══ */
+const canvas=document.getElementById('gameCanvas');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x020201);
+scene.fog=new THREE.FogExp2(0x060503,.046);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,80);
+clock=new THREE.Clock();
+ 
+/* ═══ TEXTURES ═══ */
+function makeTex(fn){const c=document.createElement('canvas');c.width=256;c.height=256;fn(c.getContext('2d'));return new THREE.CanvasTexture(c)}
+const stoneTex=makeTex(ctx=>{
+  ctx.fillStyle='#2a2520';ctx.fillRect(0,0,256,256);
+  for(let i=0;i<3600;i++){const v=Math.random()*28+7;ctx.fillStyle=`rgb(${v|0},${(v-3)|0},${(v-5)|0})`;ctx.fillRect(Math.random()*256,Math.random()*256,Math.random()*3+.5,Math.random()*2+.5)}
+  ctx.strokeStyle='rgba(14,10,8,.28)';ctx.lineWidth=1;
+  for(let i=0;i<20;i++){ctx.beginPath();let x=Math.random()*256,y=Math.random()*256;ctx.moveTo(x,y);for(let j=0;j<6;j++){x+=Math.random()*26-13;y+=Math.random()*36-8;ctx.lineTo(x,y)}ctx.stroke()}
+});
+const floorTex=makeTex(ctx=>{
+  ctx.fillStyle='#1a1917';ctx.fillRect(0,0,256,256);
+  ctx.strokeStyle='rgba(36,32,28,.42)';ctx.lineWidth=1.5;
+  for(let i=0;i<8;i++){const p=i*36.5;ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,256);ctx.stroke();ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(256,p);ctx.stroke()}
+  for(let i=0;i<2000;i++){const v=Math.random()*13+6;ctx.fillStyle=`rgb(${v|0},${v|0},${v|0})`;ctx.fillRect(Math.random()*256,Math.random()*256,Math.random()*2+.5,1)}
+});
+ 
+/* ═══ MATERIALS ═══ */
+const stoneMat=new THREE.MeshStandardMaterial({color:0x2a2520,roughness:.93,metalness:.04,map:stoneTex,bumpMap:stoneTex,bumpScale:.045});
+const floorMat=new THREE.MeshStandardMaterial({color:0x201e1a,roughness:.97,metalness:.02,map:floorTex,bumpMap:floorTex,bumpScale:.06});
+ 
+/* ═══ WORLD GEOMETRY ═══ */
+function corridor(x1,z1,x2,z2,w,h){
+  const len=Math.hypot(x2-x1,z2-z1),cx=(x1+x2)/2,cz=(z1+z2)/2,ang=Math.atan2(x2-x1,z2-z1);
+  const add=m=>{m.castShadow=true;m.receiveShadow=true;scene.add(m);return m};
+  // floor
+  add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(w,.26,len),floorMat),{position:new THREE.Vector3(cx,-.13,cz)})).rotation.y=-ang;
+  // ceiling
+  const cl=add(new THREE.Mesh(new THREE.BoxGeometry(w,.26,len),new THREE.MeshStandardMaterial({color:0x131210,roughness:1})));
+  cl.position.set(cx,h,cz);cl.rotation.y=-ang;
+  // walls
+  const wThick=.45;
+  [-1,1].forEach(s=>{
+    const wall=add(new THREE.Mesh(new THREE.BoxGeometry(wThick,h+.26,len),stoneMat));
+    wall.position.set(cx+s*Math.cos(ang)*w/2, h/2, cz-s*Math.sin(ang)*w/2);
+    wall.rotation.y=-ang;
+  });
+}
+ 
+function room(cx,cz,w,h,d){
+  const add=m=>{m.castShadow=true;m.receiveShadow=true;scene.add(m);return m};
+  add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(w,.26,d),floorMat),{position:new THREE.Vector3(cx,-.13,cz)}));
+  add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(w,.26,d),new THREE.MeshStandardMaterial({color:0x111010,roughness:1})),{position:new THREE.Vector3(cx,h,cz)}));
+  const wt=.5;
+  // +x wall
+  add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(wt,h+.26,d),stoneMat),{position:new THREE.Vector3(cx+w/2,h/2,cz)}));
+  // -x wall
+  add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(wt,h+.26,d),stoneMat),{position:new THREE.Vector3(cx-w/2,h/2,cz)}));
+  // +z wall
+  add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(w,h+.26,wt),stoneMat),{position:new THREE.Vector3(cx,h/2,cz+d/2)}));
+  // -z wall
+  add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(w,h+.26,wt),stoneMat),{position:new THREE.Vector3(cx,h/2,cz-d/2)}));
+}
+ 
+function torch(x,y,z,col){
+  scene.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,.52,6),
+    new THREE.MeshStandardMaterial({color:0x3a3028,metalness:.4,roughness:.7})),{position:new THREE.Vector3(x,y-.17,z)}));
+  const flame=new THREE.Mesh(new THREE.ConeGeometry(.11,.36,8),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.88}));
+  flame.position.set(x,y+.2,z);scene.add(flame);
+  const light=new THREE.PointLight(col,.82,13);
+  light.position.set(x,y,z);light.castShadow=true;light.shadow.mapSize.set(256,256);scene.add(light);
+  torches.push({flame,light,baseY:y+.2});
+  // embers
+  const N=18,geo=new THREE.BufferGeometry(),pos=new Float32Array(N*3);
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({color:col,size:.05,transparent:true,opacity:.7}));
+  scene.add(pts);
+  const data=[];for(let i=0;i<N;i++)data.push({t:Math.random()*Math.PI*2});
+  particleSystems.push({type:'embers',pts,data,ox:x,oy:y+.28,oz:z});
+}
+ 
+function inscription(x,y,z,idx){
+  const plaque=new THREE.Mesh(new THREE.BoxGeometry(1.6,.88,.06),
+    new THREE.MeshStandardMaterial({color:0x2a2420,roughness:.9,emissive:0x1a1208,emissiveIntensity:.35}));
+  plaque.position.set(x,y,z);plaque.castShadow=true;scene.add(plaque);
+  const glow=new THREE.Mesh(new THREE.PlaneGeometry(1.4,.68),
+    new THREE.MeshBasicMaterial({color:0xc4a96b,transparent:true,opacity:.42}));
+  glow.position.set(x,y,z-.022);scene.add(glow);
+  interactables.push({mesh:plaque,type:'inscription',data:{idx}});
+}
+ 
+function seal(x,z,idx){
+  const door=new THREE.Mesh(new THREE.BoxGeometry(5,3.2,.44),
+    new THREE.MeshStandardMaterial({color:0x1e1a16,emissive:0x3a2010,emissiveIntensity:.85,roughness:.85,metalness:.3,transparent:true,opacity:1}));
+  door.position.set(x,1.6,z);door.castShadow=true;scene.add(door);
+  const face=new THREE.Mesh(new THREE.PlaneGeometry(4.5,3),
+    new THREE.MeshBasicMaterial({color:0xc47030,transparent:true,opacity:.38}));
+  face.position.set(x,1.6,z+.23);scene.add(face);
+  const light=new THREE.PointLight(0xc47030,1.2,10);
+  light.position.set(x,1.6,z+1);scene.add(light);
+  const sd={idx,solved:false,door,face,light};
+  sealDoors.push(sd);
+  interactables.push({mesh:door,type:'seal',data:sd});
+}
+ 
+function altar(x,z){
+  const base=new THREE.Mesh(new THREE.BoxGeometry(3,.72,2),
+    new THREE.MeshStandardMaterial({color:0x1a1510,roughness:.9,metalness:.2,emissive:0x2a1808,emissiveIntensity:.55}));
+  base.position.set(x,.36,z);base.castShadow=true;scene.add(base);
+  const crystal=new THREE.Mesh(new THREE.OctahedronGeometry(.46,1),
+    new THREE.MeshBasicMaterial({color:0xc4a96b,transparent:true,opacity:.72}));
+  crystal.position.set(x,1.22,z);scene.add(crystal);
+  const light=new THREE.PointLight(0xc4a96b,2,15);
+  light.position.set(x,1.4,z);scene.add(light);
+  interactables.push({mesh:base,type:'altar',data:{crystal,light,mat:crystal.material}});
+}
+ 
+function pillar(x,z){
+  const m=new THREE.MeshStandardMaterial({color:0x252220,roughness:.93,map:stoneTex});
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.26,.33,3.2,8),m);
+  shaft.position.set(x,1.6,z);shaft.castShadow=true;scene.add(shaft);
+  scene.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.68,.15,.68),m),{position:new THREE.Vector3(x,3.24,z)}));
+}
+ 
+function mistCloud(x,z,spread,count){
+  const geo=new THREE.BufferGeometry(),pos=new Float32Array(count*3);
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({color:0x5f5545,size:.13,transparent:true,opacity:.2}));
+  scene.add(pts);
+  const data=[];
+  for(let i=0;i<count;i++)data.push({ox:x+(Math.random()-.5)*spread,oy:Math.random()*.85,oz:z+(Math.random()-.5)*spread,t:Math.random()*Math.PI*2});
+  particleSystems.push({type:'mist',pts,data});
+}
+ 
+function makeShadowCreature(){
+  const g=new THREE.Group();
+  const bm=new THREE.MeshBasicMaterial({color:0x060504,transparent:true,opacity:.68});
+  g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(.2,.27,1.15,6),bm),{position:new THREE.Vector3(0,.58,0)}));
+  g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(.19,6,6),new THREE.MeshBasicMaterial({color:0x090706,transparent:true,opacity:.62})),{position:new THREE.Vector3(0,1.3,0)}));
+  [-1,1].forEach(s=>{
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,.6,5),new THREE.MeshBasicMaterial({color:0x060504,transparent:true,opacity:.58}));
+    arm.position.set(s*.26,.72,0);arm.rotation.z=s*.3;g.add(arm);
+  });
+  // eyes
+  [-1,1].forEach(s=>{
+    g.add(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(.035,6,6),new THREE.MeshBasicMaterial({color:0x3d1612,transparent:true,opacity:0})),{position:new THREE.Vector3(s*.08,1.33,-.16)}));
+  });
+  g.visible=false;scene.add(g);return g;
+}
+ 
+/* ═══ BUILD WORLD ═══ */
+function buildWorld(){
+  scene.add(new THREE.AmbientLight(0x151210,.7));
+ 
+  /* corridors */
+  corridor(0,18,  0,-12, 5,3.2);
+  corridor(0,-12, 0,-32, 5,3.2);
+  corridor(0,-32, 0,-52, 5.2,3.4);
+  corridor(0,-12,-20,-12, 5,3.2);
+  corridor(0,-12, 20,-12, 5,3.2);
+  corridor(0,-38,-9,-38,  5,3.2);
+  corridor(0,-45, 8,-45,  5,3.2);
+ 
+  /* chambers */
+  room(-20,-12, 8,3.5,8);
+  room( 20,-12, 8,3.5,8);
+  room(  0,-42, 9,3.8,9);
+  room(  0,-60,13,5.2,13);
+ 
+  /* pillars */
+  [[-2.2,6],[2.2,6],[-2.2,-2],[2.2,-2],[-2.2,-20],[2.2,-20],[-2.2,-28],[2.2,-28],
+   [-17.5,-10],[-22.5,-10],[-17.5,-14],[-22.5,-14],[17.5,-10],[22.5,-10],[17.5,-14],[22.5,-14],
+   [-3.5,-40],[3.5,-40],[-3.5,-44],[3.5,-44],[-5.5,-56],[5.5,-56],[-5.5,-63],[5.5,-63]
+  ].forEach(([x,z])=>pillar(x,z));
+ 
+  /* torches */
+  [[0,2.6,14,0xc47a30],[0,2.6,4,0xc06525],[0,2.6,-6,0xb06020],
+   [-2.3,2.6,-10,0xb06020],[2.3,2.6,-10,0xb06020],
+   [0,2.6,-19,0xa05520],[0,2.6,-27,0xa05520],
+   [-18,3.0,-10,0x906030],[18,3.0,-10,0x906030],
+   [0,3.2,-41,0x805028],[-3.5,3.0,-38,0x704525],[3.5,3.0,-43,0x704525],
+   [0,2.8,-34,0xa05525],
+   [0,4.3,-60,0x604020],[-5.5,4.0,-58,0x604020],[5.5,4.0,-58,0x604020]
+  ].forEach(([x,y,z,c])=>torch(x,y,z,c));
+ 
+  /* inscriptions */
+  inscription(2.4,1.3,8,0);
+  inscription(-2.4,1.3,-1,1);
+  inscription(-19.9,1.5,-10,2);
+  inscription(19.9,1.5,-10,3);
+  inscription(0,1.6,-40,4);
+  inscription(4.5,2.2,-58,5);
+ 
+  /* seals */
+  seal(0,-14.5, 0);
+  seal(-19,-16, 1);
+  seal(0,-50,   2);
+ 
+  /* altar */
+  altar(0,-62);
+ 
+  /* mist */
+  [[0,10,7,42],[0,-5,8,52],[0,-22,6,38],[-18,-12,5,28],[18,-12,5,28],[0,-42,8,48],[0,-60,10,58]]
+    .forEach(([x,z,s,n])=>mistCloud(x,z,s,n));
+ 
+  /* shadow creature */
+  shadowCreature=makeShadowCreature();
+  shadowTimer=2.5+Math.random()*3;
+}
+ 
+/* ═══ HUD ═══ */
+function buildHearts(){
+  const hc=document.getElementById('heartContainer');hc.innerHTML='';
+  for(let i=0;i<3;i++){
+    const s=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    s.setAttribute('viewBox','0 0 24 24');s.setAttribute('class','heart');
+    s.innerHTML='<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="rgba(196,169,107,.82)"/>';
+    hc.appendChild(s);
+  }
+}
+function updateHearts(){document.querySelectorAll('.heart').forEach((s,i)=>s.classList.toggle('lost',i>=hearts))}
+function updateProgress(){document.getElementById('progressFill').style.width=(sealsSolved/TOTAL_SEALS*100)+'%'}
+ 
+/* ═══ RAYCASTER INTERACTION ═══ */
+function checkInteraction(){
+  if(journalOpen||puzzleOpen||endingShown||!gameActive)return;
+  const dir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  const ray=new THREE.Raycaster(camera.position.clone(),dir,0,3.5);
+  let best=null,bestD=Infinity;
+  interactables.forEach(obj=>{
+    if(obj.type==='seal'&&obj.data.solved)return;
+    if(obj.type==='altar'&&sealsSolved<TOTAL_SEALS){
+      // still show "waits" prompt
+    }
+    const box=new THREE.Box3().setFromObject(obj.mesh);
+    const cp=new THREE.Vector3();
+    ray.ray.closestPointToBox(box,cp);
+    const d=camera.position.distanceTo(cp);
+    if(d<3.5&&d<bestD){best=obj;bestD=d}
+  });
+  const prompt=document.getElementById('interactPrompt');
+  const cur=document.getElementById('cursor');
+  if(best){
+    currentInteractable=best;
+    const labels={inscription:'Read Inscription',seal:'Examine Seal',altar:sealsSolved<TOTAL_SEALS?'The altar waits…':'Activate the Altar'};
+    prompt.innerHTML=`<span class="key">E</span> ${labels[best.type]}`;
+    prompt.style.opacity='1';cur.classList.add('pulse');
+  } else {
+    currentInteractable=null;prompt.style.opacity='0';cur.classList.remove('pulse');
+  }
+}
+ 
+function interact(){
+  if(!currentInteractable||journalOpen||puzzleOpen||endingShown)return;
+  const o=currentInteractable;
+  if(o.type==='inscription')openJournal(o.data.idx);
+  else if(o.type==='seal'&&!o.data.solved)openPuzzle(o.data);
+  else if(o.type==='altar'&&sealsSolved>=TOTAL_SEALS)showEnding(true);
+}
+ 
+/* ═══ JOURNAL ═══ */
+function openJournal(idx){
+  journalOpen=true;
+  document.getElementById('journalTitle').textContent=LORE[idx].title;
+  document.getElementById('journalText').textContent=LORE[idx].text;
+  document.getElementById('journalOverlay').classList.add('visible');
+  document.exitPointerLock&&document.exitPointerLock();
+}
+function closeJournal(){
+  journalOpen=false;
+  document.getElementById('journalOverlay').classList.remove('visible');
+  canvas.requestPointerLock();
+}
+ 
+/* ═══ PUZZLE ═══ */
+function openPuzzle(sealData){
+  puzzleOpen=true;currentSealData=sealData;
+  currentSeqIdx=sealDoors.indexOf(sealData);
+  selectedRunes=[];
+  document.getElementById('puzzleTitle').textContent=SEAL_INFO[currentSeqIdx].title;
+  document.getElementById('puzzleDesc').textContent=SEAL_INFO[currentSeqIdx].desc;
+  document.getElementById('puzzleFeedback').textContent='';
+  buildSeqDots();buildRuneBtns();
+  document.getElementById('puzzleOverlay').classList.add('visible');
+  document.exitPointerLock&&document.exitPointerLock();
+}
+function buildSeqDots(){
+  const el=document.getElementById('seqIndicator');el.innerHTML='';
+  for(let i=0;i<6;i++)el.appendChild(Object.assign(document.createElement('div'),{className:'seqDot'}));
+}
+function updateSeqDots(){document.querySelectorAll('.seqDot').forEach((d,i)=>d.classList.toggle('filled',i<selectedRunes.length))}
+function buildRuneBtns(){
+  const grid=document.getElementById('runeGrid');grid.innerHTML='';
+  for(let i=0;i<9;i++){
+    const btn=document.createElement('button');btn.className='runeBtn';btn.textContent=RUNES[i];
+    btn.onclick=()=>onTap(i,btn);grid.appendChild(btn);
+  }
+}
+function onTap(i,btn){
+  if(selectedRunes.length>=6||selectedRunes.includes(i))return;
+  const seq=SEQUENCES[currentSeqIdx], pos=selectedRunes.length;
+  if(i===seq[pos]){
+    selectedRunes.push(i);btn.classList.add('selected');
+    document.getElementById('puzzleFeedback').textContent='✦';
+    document.getElementById('puzzleFeedback').style.color='rgba(110,185,95,.85)';
+    updateSeqDots();
+    if(selectedRunes.length===6)setTimeout(solveSeal,650);
+  } else {
+    btn.classList.add('wrong');
+    document.getElementById('puzzleFeedback').textContent='The runes reject your sequence.';
+    document.getElementById('puzzleFeedback').style.color='rgba(185,80,70,.75)';
+    hearts--;updateHearts();flashScreen(true);
+    if(hearts<=0){closePuzzle();showEnding(false);return}
+    setTimeout(()=>{
+      btn.classList.remove('wrong');selectedRunes=[];
+      document.querySelectorAll('.runeBtn').forEach(b=>b.classList.remove('selected'));
+      updateSeqDots();
+      document.getElementById('puzzleFeedback').textContent='Try again…';
+      document.getElementById('puzzleFeedback').style.color='rgba(196,169,107,.32)';
+    },380);
+  }
+}
+function solveSeal(){
+  currentSealData.solved=true;sealsSolved++;updateProgress();
+  const{door,face,light}=currentSealData;
+  let t=0;const iv=setInterval(()=>{
+    t+=.045;door.material.opacity=1-t;face.material.opacity=Math.max(0,.38-t*.5);
+    light.intensity=Math.max(0,1.2-t*1.5);
+    if(t>=1){clearInterval(iv);door.visible=false;face.visible=false}
+  },25);
+  document.getElementById('puzzleFeedback').textContent='⟡  Seal broken  ⟡';
+  document.getElementById('puzzleFeedback').style.color='rgba(196,169,107,.9)';
+  setTimeout(closePuzzle,1050);
+}
+function closePuzzle(){
+  puzzleOpen=false;currentSealData=null;
+  document.getElementById('puzzleOverlay').classList.remove('visible');
+  canvas.requestPointerLock();
+}
+ 
+/* ═══ ENDING ═══ */
+function showEnding(win){
+  endingShown=true;gameActive=false;
+  document.getElementById('endingOverlay').classList.add('visible');
+  document.getElementById('endingTitle').textContent=win?'Escape':'Consumed';
+  document.getElementById('endingText').innerHTML=win
+    ?'The altar crumbles. A crack splits the air — real light floods the sanctum for the first time in a thousand years.<br><br>The ancient bargain is broken. The hollow sanctum collapses behind you as you run toward the dawn.<br><br>You are free. But you will never forget what whispered your name in the dark.'
+    :'The sanctum\'s hunger is satisfied.<br><br>The darkness swallows you whole — not with violence, but with patience. It has always been patient.<br><br>Somewhere above, the hills remain silent. No one will come looking. No one ever does.';
+  document.exitPointerLock&&document.exitPointerLock();
+}
+ 
+/* ═══ EFFECTS ═══ */
+function flashScreen(red){
+  const f=document.getElementById('flash');
+  f.style.background=red?'rgba(155,35,35,.22)':'rgba(196,169,107,.05)';
+  f.style.opacity='1';setTimeout(()=>f.style.opacity='0',105);
+}
+ 
+/* ═══ SHADOW CREATURE ═══ */
+function tickShadow(dt){
+  if(!shadowCreature||!gameActive||journalOpen||puzzleOpen)return;
+  shadowTimer-=dt;
+  if(shadowTimer<=0){
+    const a=yaw+((Math.random()>.5)?Math.PI*.38:-Math.PI*.38)+(Math.random()-.5)*1.1;
+    const dist=7+Math.random()*6;
+    shadowTarget.set(playerPos.x+Math.sin(a)*dist,0,playerPos.z-Math.cos(a)*dist);
+    shadowPhase=0;shadowTimer=5+Math.random()*7;shadowDur=1.9;
+  }
+  shadowPhase+=dt;
+  const t=Math.min(shadowPhase/shadowDur,1);
+  if(t<1){
+    shadowCreature.visible=true;
+    const lerpT=.18+t*.72;
+    shadowCreature.position.set(
+      playerPos.x+(shadowTarget.x-playerPos.x)*lerpT,
+      0,
+      playerPos.z+(shadowTarget.z-playerPos.z)*lerpT
+    );
+    shadowCreature.lookAt(playerPos.x,0,playerPos.z);
+    const opc=Math.sin(t*Math.PI)*.7;
+    shadowCreature.traverse(c=>{if(c.material&&c.material.transparent)c.material.opacity=opc*(c.material.color.r<.12?.66:.52)});
+    document.getElementById('sanityFlicker').style.opacity=(t>.38&&t<.68)?Math.sin((t-.38)*Math.PI/.3)*.42:'0';
+  } else {
+    shadowCreature.visible=false;
+    document.getElementById('sanityFlicker').style.opacity='0';
+  }
+}
+ 
+/* ═══ ALTAR PULSE ═══ */
+function tickAltar(t){
+  const alt=interactables.find(i=>i.type==='altar');if(!alt)return;
+  const{crystal,light,mat}=alt.data;
+  crystal.rotation.y=t*1.12;crystal.rotation.x=t*.63;
+  crystal.scale.setScalar(.9+Math.sin(t*2.2)*.1);
+  mat.opacity=.6+Math.sin(t*2.3)*.17;
+  light.intensity=sealsSolved>=TOTAL_SEALS?3+Math.sin(t*2.5)*1.1:1.7+Math.sin(t*2.3)*.7;
+}
+ 
+/* ═══ PARTICLES ═══ */
+function tickParticles(t){
+  particleSystems.forEach(ps=>{
+    const pos=ps.pts.geometry.attributes.position.array;
+    ps.data.forEach((d,i)=>{
+      if(ps.type==='embers'){
+        const ph=(t*.72+d.t)%1;
+        pos[i*3]=ps.ox+Math.sin(t*2.1+d.t)*.08;
+        pos[i*3+1]=ps.oy+ph*.5;
+        pos[i*3+2]=ps.oz+Math.cos(t*2.4+d.t)*.08;
+      } else {
+        pos[i*3]=d.ox+Math.sin(t*.36+d.t)*.32;
+        pos[i*3+1]=d.oy+Math.sin(t*.27+d.t*1.1)*.11;
+        pos[i*3+2]=d.oz+Math.cos(t*.31+d.t)*.32;
+      }
+    });
+    ps.pts.geometry.attributes.position.needsUpdate=true;
+  });
+}
+ 
+/* ═══ TORCHES ═══ */
+function tickTorches(t){
+  torches.forEach((tr,i)=>{
+    const f=.83+Math.sin(t*7.2+i*2)*.09+Math.sin(t*12.8+i*.9)*.05;
+    tr.light.intensity=.82*f;
+    tr.flame.scale.y=.85+Math.sin(t*9+i)*.18;
+    tr.flame.scale.x=.85+Math.sin(t*11+i*1.3)*.13;
+    tr.flame.position.y=tr.baseY+Math.sin(t*8.2+i)*.024;
+  });
+}
+ 
+/* ═══ INPUT ═══ */
+const keys={w:false,a:false,s:false,d:false,shift:false};
+document.addEventListener('mousemove',e=>{
+  const cur=document.getElementById('cursor');
+  cur.style.left=e.clientX+'px';cur.style.top=e.clientY+'px';
+  if(!gameActive||journalOpen||puzzleOpen||endingShown)return;
+  if(document.pointerLockElement===canvas){
+    yaw-=e.movementX*.0017;
+    pitch-=e.movementY*.0017;
+    pitch=Math.max(-1.34,Math.min(1.34,pitch));
+  }
+});
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k in keys)keys[k]=true;
+  if(e.key==='Shift')keys.shift=true;
+  if(k==='e'){
+    if(journalOpen){closeJournal();return}
+    if(puzzleOpen){closePuzzle();return}
+    interact();
+  }
+});
+document.addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(k in keys)keys[k]=false;if(e.key==='Shift')keys.shift=false});
+canvas.addEventListener('click',()=>{if(gameActive&&!journalOpen&&!puzzleOpen&&!endingShown)canvas.requestPointerLock()});
+ 
+/* ═══ COMPASS ═══ */
+const COMP=['North','NE','East','SE','South','SW','West','NW'];
+function tickCompass(){let d=(-yaw*180/Math.PI)%360;if(d<0)d+=360;document.getElementById('compass').textContent='◆ '+COMP[Math.round(d/45)%8]+' ◆'}
+ 
+/* ═══ MOVEMENT ═══ */
+function tickMove(dt){
+  if(!gameActive||journalOpen||puzzleOpen||endingShown)return;
+  const spd=keys.shift?SPRINT_SPD:MOVE_SPD;
+  const dir=new THREE.Vector3();
+  if(keys.w)dir.z-=1;if(keys.s)dir.z+=1;if(keys.a)dir.x-=1;if(keys.d)dir.x+=1;
+  dir.normalize().multiplyScalar(spd*dt).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+  playerPos.add(dir);playerPos.y=1.6;
+  camera.position.set(playerPos.x,playerPos.y+Math.sin(Date.now()*.006)*.038,playerPos.z);
+  camera.quaternion.setFromEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));
+}
+ 
+/* ═══ LOOP ═══ */
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.048);time+=dt;
+  tickMove(dt);tickCompass();checkInteraction();
+  tickParticles(time);tickTorches(time);tickAltar(time);tickShadow(dt);
+  renderer.render(scene,camera);
+}
+ 
+/* ═══ START / RESTART ═══ */
+function startGame(){
+  document.getElementById('startScreen').classList.add('fade');
+  setTimeout(()=>{buildWorld();buildHearts();updateProgress();camera.position.copy(playerPos);gameActive=true;canvas.requestPointerLock()},900);
+}
+function restartGame(){
+  endingShown=false;hearts=3;sealsSolved=0;yaw=0;pitch=0;playerPos.set(0,1.6,18);
+  while(scene.children.length)scene.remove(scene.children[0]);
+  torches=[];particleSystems=[];sealDoors=[];interactables=[];shadowCreature=null;currentInteractable=null;
+  document.getElementById('endingOverlay').classList.remove('visible');
+  document.getElementById('interactPrompt').style.opacity='0';
+  buildWorld();updateHearts();updateProgress();
+  camera.position.copy(playerPos);gameActive=true;canvas.requestPointerLock();
+}
+ 
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('endingRestart').addEventListener('click',restartGame);
+document.getElementById('puzzleCloseBtn').addEventListener('click',closePuzzle);
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+ 
+animate();
+})();
+</script>
+</body>
+</html>
